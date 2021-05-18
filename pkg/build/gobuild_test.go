@@ -188,13 +188,13 @@ func TestGoBuildIsSupportedRefWithModules(t *testing.T) {
 	opts := []Option{
 		WithBaseImages(func(context.Context, string) (Result, error) { return base, nil }),
 		withModuleInfo(mods),
-		withBuildContext(stubBuildContext{
+		withBuildContext(newStubBuildContext(map[string]*gb.Package{
 			// make all referenced deps commands
-			"github.com/google/ko/test":  &gb.Package{Name: "main"},
-			"github.com/some/module/cmd": &gb.Package{Name: "main"},
+			"github.com/google/ko/test":  {Name: "main"},
+			"github.com/some/module/cmd": {Name: "main"},
 
-			"github.com/google/ko/pkg/build": &gb.Package{Name: "build"},
-		}),
+			"github.com/google/ko/pkg/build": {Name: "build"},
+		})),
 	}
 
 	ng, err := NewGo(context.Background(), "", opts...)
@@ -479,10 +479,18 @@ func validateImage(t *testing.T, img v1.Image, baseLayers int64, creationTime v1
 	})
 }
 
-type stubBuildContext map[string]*gb.Package
+func newStubBuildContext(importpathToPackage map[string]*gb.Package) buildContext {
+	bc, _ := newBuildContext(context.Background(), "")
+	return &stubBuildContext{bc, importpathToPackage}
+}
 
-func (s stubBuildContext) Import(path string, srcDir string, mode gb.ImportMode) (*gb.Package, error) {
-	p, ok := s[path]
+type stubBuildContext struct {
+	buildContext
+	importpathToPackage map[string]*gb.Package
+}
+
+func (s *stubBuildContext) importPackage(path string, srcDir string) (*gb.Package, error) {
+	p, ok := s.importpathToPackage[path]
 	if ok {
 		return p, nil
 	}
